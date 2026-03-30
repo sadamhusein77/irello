@@ -10,6 +10,8 @@ export interface KanbanColumnProps {
   onAddCard?: () => void;
   onEditColumn?: () => void;
   onDeleteColumn?: () => void;
+  onViewCardDetails?: (card: KanbanCardProps) => void;
+  onEditCard?: (card: KanbanCardProps) => void;
   className?: string;
   style?: React.CSSProperties;
   droppableProps?: Record<string, unknown>;

@@ -15,6 +15,8 @@ export interface KanbanCardProps {
   dueDate?: string;
   commentCount?: number;
   onClick?: () => void;
+  onViewDetails?: () => void;
+  onEdit?: () => void;
   className?: string;
   style?: React.CSSProperties;
   draggableProps?: Record<string, unknown>;

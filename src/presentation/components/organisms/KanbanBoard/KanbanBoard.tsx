@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -15,7 +15,10 @@ import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { KanbanColumn } from '../../molecules/KanbanColumn';
 import { KanbanCard } from '../../molecules/KanbanCard';
 import { ColumnModal } from '../../molecules/ColumnModal';
+import { CardModal } from '../../molecules/CardModal';
+import { CardDetailModal } from '../../molecules/CardDetailModal';
 import type { KanbanBoardProps, KanbanColumnData } from './KanbanBoard.types';
+import type { KanbanCardProps } from '../../molecules/KanbanCard/KanbanCard.types';
 
 export const KanbanBoard = ({
   columns: initialColumns,
@@ -32,6 +35,17 @@ export const KanbanBoard = ({
   const [columns, setColumns] = useState<KanbanColumnData[]>(initialColumns);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingColumn, setEditingColumn] = useState<KanbanColumnData | null>(null);
+  const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+  const [cardModalColumnId, setCardModalColumnId] = useState<string | null>(null);
+
+  // Sync columns when initialColumns prop changes (e.g., when org changes)
+  useEffect(() => {
+    setColumns(initialColumns);
+  }, [initialColumns]);
+  const [selectedCard, setSelectedCard] = useState<KanbanCardProps | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isCardEditModalOpen, setIsCardEditModalOpen] = useState(false);
 
   // Handle adding new column
   const handleAddColumn = useCallback((columnData: { title: string; color: string }) => {
@@ -44,6 +58,105 @@ export const KanbanBoard = ({
     setColumns((prev) => [...prev, newColumn]);
     onAddColumn?.(columnData);
   }, [onAddColumn]);
+
+  // Handle editing a column - open modal with column data
+  const handleEditColumn = useCallback((columnId: string) => {
+    const column = columns.find((col) => col.id === columnId);
+    if (column) {
+      setEditingColumn(column);
+      setIsModalOpen(true);
+    }
+  }, [columns]);
+
+  // Handle saving edited column
+  const handleSaveColumn = useCallback((columnData: { title: string; color: string }) => {
+    if (editingColumn) {
+      setColumns((prev) =>
+        prev.map((col) =>
+          col.id === editingColumn.id
+            ? { ...col, title: columnData.title, color: columnData.color }
+            : col
+        )
+      );
+      onEditColumn?.(editingColumn.id);
+    } else {
+      handleAddColumn(columnData);
+    }
+    setEditingColumn(null);
+  }, [editingColumn, handleAddColumn, onEditColumn]);
+
+  // Close modal and reset editing state
+  const handleCloseModal = useCallback(() => {
+    setIsModalOpen(false);
+    setEditingColumn(null);
+  }, []);
+
+  // Open card modal for a specific column
+  const handleOpenCardModal = useCallback((columnId: string) => {
+    setCardModalColumnId(columnId);
+    setIsCardModalOpen(true);
+  }, []);
+
+  // Handle adding/editing card to a column
+  const handleSaveCard = useCallback((cardData: { title: string; description?: string; priority?: 'low' | 'medium' | 'high' }) => {
+    if (selectedCard) {
+      // Editing existing card
+      setColumns((prev) =>
+        prev.map((col) => ({
+          ...col,
+          cards: col.cards.map((card) =>
+            card.id === selectedCard.id
+              ? { ...card, ...cardData }
+              : card
+          ),
+        }))
+      );
+    } else if (cardModalColumnId) {
+      // Adding new card
+      const newCard = {
+        id: `card-${Date.now()}`,
+        title: cardData.title,
+        description: cardData.description,
+        priority: cardData.priority,
+      };
+      setColumns((prev) =>
+        prev.map((col) =>
+          col.id === cardModalColumnId
+            ? { ...col, cards: [...col.cards, newCard] }
+            : col
+        )
+      );
+      onAddCard?.(cardModalColumnId);
+    }
+    setCardModalColumnId(null);
+    setSelectedCard(null);
+  }, [selectedCard, cardModalColumnId, onAddCard]);
+
+  // Close card modal
+  const handleCloseCardModal = useCallback(() => {
+    setIsCardModalOpen(false);
+    setIsCardEditModalOpen(false);
+    setCardModalColumnId(null);
+    setSelectedCard(null);
+  }, []);
+
+  // Open card edit modal
+  const handleEditCard = useCallback((card: KanbanCardProps) => {
+    setSelectedCard(card);
+    setIsCardEditModalOpen(true);
+  }, []);
+
+  // Open card detail modal
+  const handleViewCardDetails = useCallback((card: KanbanCardProps) => {
+    setSelectedCard(card);
+    setIsDetailModalOpen(true);
+  }, []);
+
+  // Close card detail modal
+  const handleCloseDetailModal = useCallback(() => {
+    setIsDetailModalOpen(false);
+    setSelectedCard(null);
+  }, []);
 
   // Filter columns and cards based on search query
   const filteredColumns = useMemo(() => {
@@ -208,15 +321,17 @@ export const KanbanBoard = ({
             cards={column.cards}
             cardCount={column.cards.length}
             onCardClick={(cardId) => onCardClick?.(cardId, column.id)}
-            onAddCard={onAddCard ? () => onAddCard(column.id) : undefined}
-            onEditColumn={onEditColumn ? () => onEditColumn(column.id) : undefined}
+            onAddCard={() => handleOpenCardModal(column.id)}
+            onEditColumn={() => handleEditColumn(column.id)}
             onDeleteColumn={onDeleteColumn ? () => onDeleteColumn(column.id) : undefined}
+            onViewCardDetails={handleViewCardDetails}
+            onEditCard={handleEditCard}
           />
         ))}
 
         {onAddColumn && (
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => { setEditingColumn(null); setIsModalOpen(true); }}
             className="
               flex items-center justify-center
               w-72 min-w-72 h-12
@@ -237,8 +352,30 @@ export const KanbanBoard = ({
 
       <ColumnModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handleAddColumn}
+        onClose={handleCloseModal}
+        onSubmit={handleSaveColumn}
+        initialData={editingColumn ? { title: editingColumn.title, color: editingColumn.color || '#3B82F6' } : undefined}
+        title={editingColumn ? 'Edit Column' : 'Add Column'}
+      />
+
+      <CardModal
+        isOpen={isCardModalOpen}
+        onClose={handleCloseCardModal}
+        onSubmit={handleSaveCard}
+      />
+
+      <CardModal
+        isOpen={isCardEditModalOpen}
+        onClose={handleCloseCardModal}
+        onSubmit={handleSaveCard}
+        initialData={selectedCard ? { title: selectedCard.title, description: selectedCard.description, priority: selectedCard.priority } : undefined}
+        title="Edit Card"
+      />
+
+      <CardDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={handleCloseDetailModal}
+        card={selectedCard}
       />
 
       <DragOverlay>

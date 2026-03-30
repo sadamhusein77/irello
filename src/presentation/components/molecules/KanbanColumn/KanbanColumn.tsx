@@ -13,6 +13,8 @@ export const KanbanColumn = ({
   onAddCard,
   onEditColumn,
   onDeleteColumn,
+  onViewCardDetails,
+  onEditCard,
   className = '',
   style,
 }: KanbanColumnProps) => {
@@ -39,7 +41,10 @@ export const KanbanColumn = ({
             className="w-3 h-3 rounded-full"
             style={{ backgroundColor: color }}
           />
-          <h3 className="font-semibold text-slate-800 dark:text-slate-200">
+          <h3
+            className="font-semibold text-slate-800 dark:text-slate-200 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            onClick={onEditColumn}
+          >
             {title}
           </h3>
           {cardCount !== undefined && (
@@ -100,6 +105,8 @@ export const KanbanColumn = ({
               key={card.id}
               {...card}
               onClick={onCardClick ? () => onCardClick(card.id) : card.onClick}
+              onViewDetails={onViewCardDetails ? () => onViewCardDetails(card) : undefined}
+              onEdit={onEditCard ? () => onEditCard(card) : undefined}
             />
           ))}
           {isEmpty && (
