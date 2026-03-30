@@ -1,14 +1,190 @@
 // Kanban Board Page
 
-import { useState } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { KanbanBoard } from '../components/organisms/KanbanBoard';
 import { SkeletonColumn } from '../components/molecules/SkeletonColumn';
+import { Select } from '../components/ui';
 import { useKanbanBoard, useTheme } from '../hooks';
 
+const organizations = [
+  { id: 'org-1', name: 'Acme Corp' },
+  { id: 'org-2', name: 'TechStart Inc' },
+  { id: 'org-3', name: 'DesignHub' },
+];
+
+// Mock data generator based on organization
+const generateMockData = (orgId: string) => {
+  const orgData: Record<string, {
+    columns: Array<{
+      id: string;
+      title: string;
+      color: string;
+      cards: Array<{
+        id: string;
+        title: string;
+        description?: string;
+        priority?: 'low' | 'medium' | 'high';
+        tags?: Array<{ label: string; color: string }>;
+        assignee?: { id: string; name: string; avatar?: string };
+        commentCount?: number;
+        dueDate?: string;
+      }>;
+    }>;
+  }> = {
+    'org-1': {
+      columns: [
+        {
+          id: 'col-1',
+          title: 'Backlog',
+          color: '#6B7280',
+          cards: [
+            { id: 'card-1', title: 'Implement user authentication', description: 'Add OAuth2 login flow', priority: 'high', tags: [{ label: 'Security', color: '#EF4444' }], commentCount: 3 },
+            { id: 'card-2', title: 'Database optimization', description: 'Improve query performance', priority: 'medium', tags: [{ label: 'Backend', color: '#3B82F6' }], commentCount: 1 },
+          ],
+        },
+        {
+          id: 'col-2',
+          title: 'In Progress',
+          color: '#3B82F6',
+          cards: [
+            { id: 'card-3', title: 'API rate limiting', description: 'Implement request throttling', priority: 'high', tags: [{ label: 'Backend', color: '#3B82F6' }, { label: 'Security', color: '#EF4444' }], commentCount: 5 },
+            { id: 'card-4', title: 'Mobile responsive design', priority: 'medium', tags: [{ label: 'Frontend', color: '#10B981' }], commentCount: 2 },
+          ],
+        },
+        {
+          id: 'col-3',
+          title: 'Review',
+          color: '#F59E0B',
+          cards: [
+            { id: 'card-5', title: 'Update API documentation', description: 'Add missing endpoints', priority: 'low', commentCount: 0 },
+          ],
+        },
+        {
+          id: 'col-4',
+          title: 'Done',
+          color: '#10B981',
+          cards: [
+            { id: 'card-6', title: 'Fix login bug', priority: 'high', tags: [{ label: 'Bug', color: '#EF4444' }], commentCount: 4 },
+          ],
+        },
+      ],
+    },
+    'org-2': {
+      columns: [
+        {
+          id: 'col-1',
+          title: 'Ideas',
+          color: '#8B5CF6',
+          cards: [
+            { id: 'card-1', title: 'AI chatbot integration', description: 'Add GPT-4 support', priority: 'medium', tags: [{ label: 'AI', color: '#8B5CF6' }], commentCount: 8 },
+            { id: 'card-2', title: 'Real-time notifications', priority: 'low', tags: [{ label: 'Feature', color: '#10B981' }], commentCount: 2 },
+          ],
+        },
+        {
+          id: 'col-2',
+          title: 'Sprint',
+          color: '#3B82F6',
+          cards: [
+            { id: 'card-3', title: 'Build analytics dashboard', description: 'Charts and metrics', priority: 'high', tags: [{ label: 'Frontend', color: '#10B981' }, { label: 'Backend', color: '#3B82F6' }], commentCount: 6 },
+            { id: 'card-4', title: 'Payment gateway', description: 'Stripe integration', priority: 'high', tags: [{ label: 'Finance', color: '#F59E0B' }], commentCount: 3, dueDate: 'Mar 15' },
+          ],
+        },
+        {
+          id: 'col-3',
+          title: 'Testing',
+          color: '#F59E0B',
+          cards: [
+            { id: 'card-5', title: 'Load testing', description: 'Stress test the API', priority: 'medium', tags: [{ label: 'DevOps', color: '#06B6D4' }], commentCount: 1 },
+          ],
+        },
+        {
+          id: 'col-4',
+          title: 'Shipped',
+          color: '#10B981',
+          cards: [
+            { id: 'card-6', title: 'User onboarding flow', priority: 'high', tags: [{ label: 'UX', color: '#EC4899' }], commentCount: 12 },
+          ],
+        },
+      ],
+    },
+    'org-3': {
+      columns: [
+        {
+          id: 'col-1',
+          title: 'Concept',
+          color: '#EC4899',
+          cards: [
+            { id: 'card-1', title: 'Brand redesign', description: 'New visual identity', priority: 'high', tags: [{ label: 'Design', color: '#EC4899' }], commentCount: 15 },
+          ],
+        },
+        {
+          id: 'col-2',
+          title: 'Design',
+          color: '#8B5CF6',
+          cards: [
+            { id: 'card-2', title: 'Homepage mockups', description: '3 layout options', priority: 'high', tags: [{ label: 'UI', color: '#3B82F6' }, { label: 'Design', color: '#EC4899' }], commentCount: 7 },
+            { id: 'card-3', title: 'Icon set creation', priority: 'medium', tags: [{ label: 'Assets', color: '#F59E0B' }], commentCount: 3 },
+          ],
+        },
+        {
+          id: 'col-3',
+          title: 'Prototype',
+          color: '#06B6D4',
+          cards: [
+            { id: 'card-4', title: 'Interactive prototype', description: 'Figma to code', priority: 'medium', tags: [{ label: 'UX', color: '#EC4899' }], commentCount: 5 },
+          ],
+        },
+        {
+          id: 'col-4',
+          title: 'Approved',
+          color: '#10B981',
+          cards: [
+            { id: 'card-5', title: 'Logo final', priority: 'high', tags: [{ label: 'Branding', color: '#8B5CF6' }], commentCount: 20 },
+          ],
+        },
+      ],
+    },
+  };
+
+  return orgData[orgId] || orgData['org-1'];
+};
+
 export const Kanban = () => {
-  const { columns, isLoading, error, refetch } = useKanbanBoard();
+  const { isLoading, error, refetch } = useKanbanBoard();
   const { theme, toggleTheme } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedOrg, setSelectedOrg] = useState(organizations[0].id);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [isOrgChanging, setIsOrgChanging] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    if (userMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [userMenuOpen]);
+
+  // Generate mock columns based on selected organization
+  const columns = useMemo(() => {
+    return generateMockData(selectedOrg).columns;
+  }, [selectedOrg]);
+
+  // Handle organization change with loading state
+  const handleOrgChange = useCallback((orgId: string) => {
+    setIsOrgChanging(true);
+    // Simulate brief loading for visual feedback
+    setTimeout(() => {
+      setSelectedOrg(orgId);
+      setIsOrgChanging(false);
+    }, 300);
+  }, []);
 
   const handleCardClick = (cardId: string, columnId: string) => {
     console.log('Card clicked:', cardId, 'in column:', columnId);
@@ -22,7 +198,7 @@ export const Kanban = () => {
     console.log('Add card to column:', columnId);
   };
 
-  if (isLoading) {
+  if (isLoading || isOrgChanging) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-colors">
@@ -87,8 +263,9 @@ export const Kanban = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
       <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-colors">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-6">
+        <div className="flex items-center justify-between gap-8">
+          {/* Left side */}
+          <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/30">
                 <span className="text-white font-bold text-sm">i</span>
@@ -106,8 +283,17 @@ export const Kanban = () => {
                 Drag and drop tasks to manage your workflow
               </p>
             </div>
+            <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+            <Select
+              value={selectedOrg}
+              onChange={handleOrgChange}
+              options={organizations.map((org) => ({ value: org.id, label: org.name }))}
+              placeholder="Select organization"
+            />
           </div>
-          <div className="flex items-center gap-2">
+
+          {/* Right side */}
+          <div className="flex items-center gap-3">
             {/* Search Input */}
             <div className="relative">
               <input
@@ -161,6 +347,33 @@ export const Kanban = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </button>
+
+            {/* User Avatar with Dropdown */}
+            <div className="relative" ref={userMenuRef}>
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium text-sm hover:opacity-90 transition-opacity"
+              >
+                SA
+              </button>
+              {userMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md shadow-lg z-20 overflow-hidden">
+                  <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700">
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Sadam</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">sadam@example.com</p>
+                  </div>
+                  <button
+                    onClick={() => setUserMenuOpen(false)}
+                    className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

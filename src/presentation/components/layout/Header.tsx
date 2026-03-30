@@ -28,7 +28,7 @@ export function Header() {
         ${isScrolled ? 'bg-white dark:bg-slate-900 shadow-md' : 'bg-transparent'}
       `}
     >
-      <div className="max-w-[1200px] mx-auto px-6 h-full flex items-center justify-between">
+      <div className="px-6 h-full flex items-center justify-between">
         <Link to="/" className="text-xl font-bold text-blue-600">
           irello
         </Link>
